@@ -1,0 +1,30 @@
+{
+  "name": "pokedex-api",
+  "version": "1.0.0",
+  "description": "Microsserviço REST para consulta e gerenciamento de um catálogo de Pokémon (CRUD com Node.js e MongoDB).",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "nodemon src/server.js",
+    "test": "echo \"Nenhum teste configurado ainda\" && exit 0"
+  },
+  "keywords": [
+    "nodejs",
+    "express",
+    "mongodb",
+    "crud",
+    "pokeapi"
+  ],
+  "license": "ISC",
+  "dependencies": {
+    "bcryptjs": "^3.0.3",
+    "cors": "^2.8.6",
+    "dotenv": "^18.0.8",
+    "express": "^5.3.0",
+    "jsonwebtoken": "^9.0.3",
+    "mongoose": "^9.11.2"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.14"
+  }
+}
