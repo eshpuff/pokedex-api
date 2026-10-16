@@ -1,7 +1,8 @@
 require('dotenv').config();
 const express = require('express');
 const connectDatabase = require('./config/database');
-const pokemonRoutes = require('./routes/pokemon-routes')
+const pokemonRoutes = require('./routes/pokemon-routes');
+const pokeapiRoutes = require('./routes/pokeapi-routes');
 
 const app = express();
 app.use(express.json());
@@ -10,7 +11,8 @@ app.get('/health', (req, res) => {
   res.json({ status: 'ok' });
 });
 
-app.use('/pokemon', pokemonRoutes)
+app.use('/pokeapi', pokeapiRoutes);
+app.use('/pokemon', pokemonRoutes);
 
 app.use((req, res) => {
     res.status(404).json({message: 'rota não encontrada.'});

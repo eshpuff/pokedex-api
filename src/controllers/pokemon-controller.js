@@ -1,9 +1,13 @@
 const mongoose = require('mongoose');
 const Pokemon = require('../models/pokemon');
+const {fetchPokemon, PokeApiError} = require('../services/pokeapi-service');
 
 const EDITABLE_FIELDS = ['nickname', 'notes', 'favorite'];
 
 function handleError(error, res) {
+  if (error instanceof PokeApiError) {
+    return res.status(error.status).json({ message: error.message });}
+
   //podeid ja cadastrado
   if (error.code === 11000) {
     return res
@@ -20,10 +24,37 @@ function handleError(error, res) {
   return res.status(500).json({ message: 'erro interno do servidor...' });
 }
 
+//get na pokeapi
+async function searchPokeApi(req,res) {
+  try {
+    const pokemon = await fetchPokemon(req.params.nameOrId);
+    const saved = await Pokemon.exists({ pokeId: pokemon.pokeId });
+    return res.json({ ...pokemon, inCatalog: Boolean(saved) });
+  } catch (error) {
+    return handleError(error, res);
+  }
+}
+
 // POST
 async function create(req, res) {
   try {
-    const pokemon = await Pokemon.create(req.body);
+    const { nameOrId, nickname, notes, favorite } = req.body;
+ 
+    if (nameOrId === undefined || String(nameOrId).trim() === '') {
+      return res
+        .status(400)
+        .json({ message: 'forneça numero ou nome do pokemon' });
+    }
+ 
+    const pokeData = await fetchPokemon(nameOrId);
+ 
+    const pokemon = await Pokemon.create({
+      ...pokeData,
+      nickname,
+      notes,
+      favorite,
+    });
+ 
     return res.status(201).json(pokemon);
   } catch (error) {
     return handleError(error, res);
@@ -141,4 +172,4 @@ async function remove(req, res) {
   }
 }
 
-module.exports = { create, list, getById, update, remove };
+module.exports = { searchPokeApi, create, list, getById, update, remove };
