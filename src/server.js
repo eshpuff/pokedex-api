@@ -5,6 +5,8 @@ const pokemonRoutes = require('./routes/pokemon-routes');
 const pokeapiRoutes = require('./routes/pokeapi-routes');
 const authRoutes = require('./routes/auth-routes');
 
+const path = require('path');
+
 const app = express();
 app.use(express.json());
 
@@ -15,6 +17,8 @@ app.get('/health', (req, res) => {
 app.use('/pokeapi', pokeapiRoutes);
 app.use('/pokemon', pokemonRoutes);
 app.use('/auth', authRoutes);
+
+app.use(express.static(path.join(__dirname, '..', 'public')));
 
 app.use((req, res) => {
     res.status(404).json({message: 'rota não encontrada.'});

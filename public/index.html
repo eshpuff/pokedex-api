@@ -1,0 +1,452 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>PokéDex</title>
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            padding: 24px 16px 64px;
+            background: #fff;
+            color: #222;
+            font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+            line-height: 1.4;
+        }
+
+        main {
+            max-width: 720px;
+            margin: 0 auto;
+        }
+
+        h1 {
+            margin: 0 0 4px;
+            font-size: 28px;
+        }
+
+        h2 {
+            font-size: 18px;
+            margin: 32px 0 12px;
+        }
+
+        .muted {
+            color: #777;
+            font-size: 14px;
+        }
+
+        .hidden { display: none !important; }
+
+        .row {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        .grow {
+            flex: 1;
+            min-width: 180px;
+        }
+
+        .topbar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+
+        input {
+            padding: 10px 12px;
+            border: 1px solid #ccc;
+            border-radius: 8px;
+            font-size: 15px;
+        }
+
+        input:focus {
+            outline: 2px solid #222;
+            outline-offset: -1px;
+            border-color: #222;
+        }
+
+        button {
+            padding: 10px 14px;
+            border: 1px solid #222;
+            background: #222;
+            color: #fff;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+
+        button.secondary {
+            background: #fff;
+            color: #222;
+        }
+
+        button.danger {
+            background: #fff;
+            color: #b00020;
+            border-color: #b00020;
+        }
+
+        button:disabled {
+            opacity: .5;
+            cursor: not-allowed;
+        }
+
+        .msg {
+            min-height: 22px;
+            margin: 16px 0 0;
+            font-size: 14px;
+        }
+
+        .msg.ok {
+            color: #1a7f37;
+        }
+
+        .msg.error {
+            color: #b00020;
+        }
+
+        .card {
+            display: flex;
+            gap: 12px;
+            align-items: center;
+            border: 1px solid #e3e3e3;
+            border-radius: 12px;
+            padding: 12px;
+            margin-bottom: 10px;
+        }
+
+        .card img {
+            width: 72px;
+            height: 72px;
+            flex: none;
+            background: #f6f6f6;
+            border-radius: 8px;
+            image-rendering: pixelated;
+        }
+
+        .card .info {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .card .title {
+            font-weight: 600;
+            text-transform: capitalize;
+        }
+
+        .tag {
+            display: inline-block;
+            font-size: 12px;
+            padding: 2px 8px;
+            border: 1px solid #ddd;
+            border-radius: 999px;
+            margin-right: 4px;
+            text-transform: capitalize;
+        }
+
+        .actions {
+            display: flex;
+            gap: 6px;
+            flex-wrap: wrap;
+            margin-top: 8px;
+        }
+
+        .actions button {
+            padding: 6px 10px;
+            font-size: 13px;
+        }
+    </style>
+</head>
+
+<body>
+    <main>
+        <div class="topbar">
+            <div>
+                <h1>PokéDex</h1>
+                <div class="muted">Catálogo de Pokémon</div>
+            </div>
+            <div id="userBox" class="row hidden">
+                <span id="userName" class="muted"></span>
+                <button class="secondary" id="logoutBtn">Sair</button>
+            </div>
+        </div>
+
+        <p id="msg" class="msg"></p>
+
+        <section id="authBox">
+            <h2>Entrar</h2>
+            <div class="row">
+                <input type="text" id="name" class="grow" placeholder="Nome (só para criar conta)" />
+                <input type="email" id="email" class="grow" placeholder="Email" />
+                <input type="password" id="password" class="grow" placeholder="Senha (mín. 6 caracteres)" />
+            </div>
+            <div class="row" style="margin-top: 8px">
+                <button id="loginBtn">Entrar</button>
+                <button class="secondary" id="registerBtn">Criar conta</button>
+            </div>
+        </section>
+
+        <section>
+            <h2>Buscar na PokéAPI</h2>
+            <div class="row">
+                <input type="text" id="query" class="grow" placeholder="Nome ou número (ex.: pikachu ou 25)" />
+                <button id="searchBtn">Buscar</button>
+            </div>
+            <div id="result" style="margin-top: 12px"></div>
+        </section>
+
+        <section>
+            <h2>Meu catálogo <span id="count" class="muted"></span></h2>
+            <div id="catalog"></div>
+        </section>
+    </main>
+
+    <script>
+        const $ = (id) => document.getElementById(id);
+
+        let token = localStorage.getItem('token');
+        let currentResult = null; // último Pokémon buscado
+        let catalogItems = {}; // itens do catálogo, indexados pelo _id
+
+        // ---------- utilidades ----------
+
+        // Escapa texto antes de colocar no HTML (evita injeção de código)
+        function esc(value) {
+            return String(value ?? '').replace(/[&<>"']/g, (c) => ({
+                '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
+            }[c]));
+        }
+
+        function showMsg(text, isError = false) {
+            const el = $('msg');
+            el.textContent = text;
+            el.className = 'msg ' + (text ? (isError ? 'error' : 'ok') : '');
+        }
+
+        // Faz a chamada à API, já enviando o token quando existir
+        async function api(path, options = {}) {
+            const headers = { 'Content-Type': 'application/json' };
+            if (token) headers.Authorization = 'Bearer ' + token;
+
+            const res = await fetch(path, { ...options, headers });
+            const data = res.status === 204 ? null : await res.json().catch(() => null);
+
+            if (!res.ok) {
+                if (res.status === 401 && token) {
+                    logout(false);
+                    throw new Error('Sessão expirada. Faça login novamente.');
+                }
+                throw new Error((data && data.message) || 'Erro ' + res.status);
+            }
+            return data;
+        }
+
+        // ---------- autenticação ----------
+
+        function updateAuthUI() {
+            const logged = Boolean(token);
+            $('authBox').classList.toggle('hidden', logged);
+            $('userBox').classList.toggle('hidden', !logged);
+            $('userName').textContent = logged ? 'Olá, ' + (localStorage.getItem('userName') || '') : '';
+        }
+
+        function logout(withMessage = true) {
+            token = null;
+            localStorage.removeItem('token');
+            localStorage.removeItem('userName');
+            updateAuthUI();
+            $('result').innerHTML = '';
+            currentResult = null;
+            loadCatalog();
+            if (withMessage) showMsg('Você saiu.');
+        }
+
+        async function submitAuth(mode) {
+            const name = $('name').value.trim();
+            const email = $('email').value.trim();
+            const password = $('password').value;
+
+            try {
+                if (mode === 'register') {
+                    await api('/auth/register', {
+                        method: 'POST',
+                        body: JSON.stringify({ name, email, password }),
+                    });
+                    showMsg('Conta criada! Agora clique em "Entrar".');
+                    return;
+                }
+
+                const data = await api('/auth/login', {
+                    method: 'POST',
+                    body: JSON.stringify({ email, password }),
+                });
+                token = data.token;
+                localStorage.setItem('token', token);
+                localStorage.setItem('userName', data.user.name);
+                $('password').value = '';
+                updateAuthUI();
+                loadCatalog();
+                showMsg('Bem-vindo, ' + data.user.name + '!');
+            } catch (error) {
+                showMsg(error.message, true);
+            }
+        }
+
+        // ---------- busca na PokéAPI ----------
+
+        function pokemonCard(p, extraHtml = '') {
+            const types = (p.types || []).map((t) => `<span class="tag">${esc(t)}</span>`).join('');
+            const abilities = (p.abilities || []).join(', ');
+            return `
+        <div class="card">
+          ${p.sprite ? `<img src="${esc(p.sprite)}" alt="${esc(p.name)}" />` : ''}
+          <div class="info">
+            <div class="title">#${esc(p.pokeId)} ${esc(p.name)}${p.favorite ? ' ★' : ''}</div>
+            <div>${types}</div>
+            <div class="muted">Altura: ${esc(p.height)} · Peso: ${esc(p.weight)} · Habilidades: ${esc(abilities)}</div>
+            ${extraHtml}
+          </div>
+        </div>`;
+        }
+
+        function renderResult(p) {
+            const label = p.inCatalog ? 'Já está no catálogo' : 'Adicionar ao catálogo';
+            const button = `
+        <div class="actions">
+          <button data-add="${esc(p.pokeId)}" ${p.inCatalog ? 'disabled' : ''}>${label}</button>
+        </div>`;
+            $('result').innerHTML = pokemonCard(p, button);
+        }
+
+        async function search() {
+            const query = $('query').value.trim();
+            if (!query) return showMsg('Digite o nome ou o número de um Pokémon.', true);
+
+            try {
+                currentResult = await api('/pokeapi/' + encodeURIComponent(query));
+                renderResult(currentResult);
+                showMsg('');
+            } catch (error) {
+                currentResult = null;
+                $('result').innerHTML = '';
+                showMsg(error.message, true);
+            }
+        }
+
+        async function addToCatalog(nameOrId) {
+            if (!token) return showMsg('Faça login para adicionar ao catálogo.', true);
+
+            try {
+                await api('/pokemon', { method: 'POST', body: JSON.stringify({ nameOrId }) });
+                showMsg('Adicionado ao catálogo!');
+                if (currentResult) renderResult({ ...currentResult, inCatalog: true });
+                await loadCatalog();
+            } catch (error) {
+                showMsg(error.message, true);
+            }
+        }
+
+        // ---------- catálogo ----------
+
+        function catalogCard(p) {
+            const extra = `
+        ${p.nickname ? `<div>Apelido: <strong>${esc(p.nickname)}</strong></div>` : ''}
+        ${p.notes ? `<div class="muted">${esc(p.notes)}</div>` : ''}
+        <div class="actions">
+          <button class="secondary" data-action="favorite" data-id="${esc(p._id)}">${p.favorite ? 'Desfavoritar' : 'Favoritar'}</button>
+          <button class="secondary" data-action="edit" data-id="${esc(p._id)}">Editar</button>
+          <button class="danger" data-action="delete" data-id="${esc(p._id)}">Remover</button>
+        </div>`;
+            return pokemonCard(p, extra);
+        }
+
+        async function loadCatalog() {
+            if (!token) {
+                catalogItems = {};
+                $('count').textContent = '';
+                $('catalog').innerHTML = '<p class="muted">Faça login para ver o catálogo.</p>';
+                return;
+            }
+
+            try {
+                const { data, total } = await api('/pokemon?limit=100');
+                catalogItems = {};
+                data.forEach((p) => { catalogItems[p._id] = p; });
+
+                $('count').textContent = '(' + total + ')';
+                $('catalog').innerHTML = data.length
+                    ? data.map(catalogCard).join('')
+                    : '<p class="muted">Nenhum Pokémon no catálogo ainda. Busque um acima!</p>';
+            } catch (error) {
+                showMsg(error.message, true);
+            }
+        }
+
+        async function catalogAction(action, id) {
+            if (!token) return showMsg('Faça login para alterar o catálogo.', true);
+
+            const item = catalogItems[id];
+            if (!item) return;
+
+            try {
+                if (action === 'favorite') {
+                    await api('/pokemon/' + id, {
+                        method: 'PATCH',
+                        body: JSON.stringify({ favorite: !item.favorite }),
+                    });
+                } else if (action === 'edit') {
+                    const nickname = prompt('Apelido:', item.nickname || '');
+                    if (nickname === null) return;
+                    const notes = prompt('Notas:', item.notes || '');
+                    if (notes === null) return;
+                    await api('/pokemon/' + id, {
+                        method: 'PATCH',
+                        body: JSON.stringify({ nickname, notes }),
+                    });
+                } else if (action === 'delete') {
+                    if (!confirm('Remover ' + item.name + ' do catálogo?')) return;
+                    await api('/pokemon/' + id, { method: 'DELETE' });
+                }
+
+                showMsg('Catálogo atualizado.');
+                await loadCatalog();
+            } catch (error) {
+                showMsg(error.message, true);
+            }
+        }
+
+        // ---------- eventos ----------
+
+        $('loginBtn').addEventListener('click', () => submitAuth('login'));
+        $('registerBtn').addEventListener('click', () => submitAuth('register'));
+        $('logoutBtn').addEventListener('click', () => logout());
+        $('searchBtn').addEventListener('click', search);
+
+        $('query').addEventListener('keydown', (e) => { if (e.key === 'Enter') search(); });
+        $('password').addEventListener('keydown', (e) => { if (e.key === 'Enter') submitAuth('login'); });
+
+        $('result').addEventListener('click', (e) => {
+            const btn = e.target.closest('button[data-add]');
+            if (btn) addToCatalog(btn.dataset.add);
+        });
+
+        $('catalog').addEventListener('click', (e) => {
+            const btn = e.target.closest('button[data-action]');
+            if (btn) catalogAction(btn.dataset.action, btn.dataset.id);
+        });
+
+        // ---------- início ----------
+        updateAuthUI();
+        loadCatalog();
+    </script>
+</body>
+
+</html>
